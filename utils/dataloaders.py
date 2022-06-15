@@ -256,148 +256,19 @@ class LoadImages:
         return self.nf  # number of files
 
 
-class LoadWebcam:  # for inference
-    # YOLOv5 local webcam dataloader, i.e. `python detect.py --source 0`
-    def __init__(self, pipe='0', img_size=640, stride=32):
-        self.img_size = img_size
-        self.stride = stride
-        self.pipe = eval(pipe) if pipe.isnumeric() else pipe
-        self.cap = cv2.VideoCapture(self.pipe)  # video capture object
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # set buffer size
-
-    def __iter__(self):
-        self.count = -1
-        return self
-
-    def __next__(self):
-        self.count += 1
-        if cv2.waitKey(1) == ord('q'):  # q to quit
-            self.cap.release()
-            cv2.destroyAllWindows()
-            raise StopIteration
-
-        # Read frame
-        ret_val, img0 = self.cap.read()
-        img0 = cv2.flip(img0, 1)  # flip left-right
-
-        # Print
-        assert ret_val, f'Camera Error {self.pipe}'
-        img_path = 'webcam.jpg'
-        s = f'webcam {self.count}: '
-
-        # Padded resize
-        img = letterbox(img0, self.img_size, stride=self.stride)[0]
-
-        # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
-        img = np.ascontiguousarray(img)
-
-        return img_path, img, img0, None, s
-
-    def __len__(self):
-        return 0
-
-
-class LoadStreams:
-    # YOLOv5 streamloader, i.e. `python detect.py --source 'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP streams`
-    def __init__(self, sources='streams.txt', img_size=640, stride=32, auto=True):
-        self.mode = 'stream'
-        self.img_size = img_size
-        self.stride = stride
-
-        if os.path.isfile(sources):
-            with open(sources) as f:
-                sources = [x.strip() for x in f.read().strip().splitlines() if len(x.strip())]
-        else:
-            sources = [sources]
-
-        n = len(sources)
-        self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
-        self.sources = [clean_str(x) for x in sources]  # clean source names for later
-        self.auto = auto
-        for i, s in enumerate(sources):  # index, source
-            # Start thread to read frames from video stream
-            st = f'{i + 1}/{n}: {s}... '
-            if urlparse(s).hostname in ('www.youtube.com', 'youtube.com', 'youtu.be'):  # if source is YouTube video
-                check_requirements(('pafy', 'youtube_dl==2020.12.2'))
-                import pafy
-                s = pafy.new(s).getbest(preftype="mp4").url  # YouTube URL
-            s = eval(s) if s.isnumeric() else s  # i.e. s = '0' local webcam
-            cap = cv2.VideoCapture(s)
-            assert cap.isOpened(), f'{st}Failed to open {s}'
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
-            self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
-            self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
-
-            _, self.imgs[i] = cap.read()  # guarantee first frame
-            self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
-            LOGGER.info(f"{st} Success ({self.frames[i]} frames {w}x{h} at {self.fps[i]:.2f} FPS)")
-            self.threads[i].start()
-        LOGGER.info('')  # newline
-
-        # check for common shapes
-        s = np.stack([letterbox(x, self.img_size, stride=self.stride, auto=self.auto)[0].shape for x in self.imgs])
-        self.rect = np.unique(s, axis=0).shape[0] == 1  # rect inference if all shapes equal
-        if not self.rect:
-            LOGGER.warning('WARNING: Stream shapes differ. For optimal performance supply similarly-shaped streams.')
-
-    def update(self, i, cap, stream):
-        # Read stream `i` frames in daemon thread
-        n, f, read = 0, self.frames[i], 1  # frame number, frame array, inference every 'read' frame
-        while cap.isOpened() and n < f:
-            n += 1
-            # _, self.imgs[index] = cap.read()
-            cap.grab()
-            if n % read == 0:
-                success, im = cap.retrieve()
-                if success:
-                    self.imgs[i] = im
-                else:
-                    LOGGER.warning('WARNING: Video stream unresponsive, please check your IP camera connection.')
-                    self.imgs[i] = np.zeros_like(self.imgs[i])
-                    cap.open(stream)  # re-open stream if signal was lost
-            time.sleep(1 / self.fps[i])  # wait time
-
-    def __iter__(self):
-        self.count = -1
-        return self
-
-    def __next__(self):
-        self.count += 1
-        if not all(x.is_alive() for x in self.threads) or cv2.waitKey(1) == ord('q'):  # q to quit
-            cv2.destroyAllWindows()
-            raise StopIteration
-
-        # Letterbox
-        img0 = self.imgs.copy()
-        img = [letterbox(x, self.img_size, stride=self.stride, auto=self.rect and self.auto)[0] for x in img0]
-
-        # Stack
-        img = np.stack(img, 0)
-
-        # Convert
-        img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
-        img = np.ascontiguousarray(img)
-
-        return self.sources, img, img0, None, ''
-
-    def __len__(self):
-        return len(self.sources)  # 1E12 frames = 32 streams at 30 FPS for 30 years
-
-
 def img2label_paths(img_paths):
     # Define label paths as a function of image paths
     sa, sb = f'{os.sep}leftImg8bit{os.sep}', f'{os.sep}gtFine{os.sep}'  # /images/, /labels/ substrings
     return [sb.join(x.rsplit(sa, 1)).rsplit('_', 1)[0] + '_gtFine_labelTrainIds.png' for x in img_paths]
 
 class LoadImagesAndLabels_sg(Dataset):
-    def __init__(self, path, training, size=None):
+    def __init__(self, path, training, size=None, hyp=None):
         self.image_path = glob.glob(os.path.join(path,'*','*.png'), recursive=True)
         self.label_path = img2label_paths(self.image_path)
         self.training = training
+        self.hyp = hyp
         self.size = size
+        self.albumentations = Albumentations() if training else None
 
     def __len__(self):
         return len(self.image_path)
@@ -407,13 +278,35 @@ class LoadImagesAndLabels_sg(Dataset):
         label = Image.open(self.label_path[index])
 
         if self.training:
+            hyp = self.hyp
             i, j, h, w = transforms.RandomCrop.get_params(image, (self.size, self.size))
 
-            image = transformsF.crop(image, i, j, h, w)
-            label = transformsF.crop(label, i, j, h, w)
+            image = np.array(transformsF.crop(image, i, j, h, w), np.uint8)
+            label = np.array(transformsF.crop(label, i, j, h, w), np.int64)
 
-        image = transformsF.to_tensor(image)
-        label = torch.from_numpy(np.array(label, np.int64))
+            #img, labels = random_perspective(img,labels,degrees=hyp['degrees'],translate=hyp['translate'],scale=hyp['scale'],shear=hyp['shear'],perspective=hyp['perspective'])
+
+            image = self.albumentations(image)
+
+            # HSV color-space
+            augment_hsv(image, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
+
+            # Flip up-down
+            if random.random() < hyp['flipud']:
+                image = np.flipud(image)
+                label = np.flipud(label)
+
+            # Flip left-right
+            if random.random() < hyp['fliplr']:
+                image = np.fliplr(image)
+                label = np.fliplr(label)
+
+        image = image.transpose((2, 0, 1))  # HWC to CHW
+        image = np.ascontiguousarray(image)
+        label = np.ascontiguousarray(label)
+
+        image = torch.from_numpy(image)/255.0
+        label = torch.from_numpy(label)
 
         return image, label, self.image_path[index]
 

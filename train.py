@@ -219,7 +219,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         LOGGER.info('Using SyncBatchNorm()')
 
     # Trainloader
-    train_dataset = LoadImagesAndLabels_sg(train_path, training=True, size=imgsz)
+    train_dataset = LoadImagesAndLabels_sg(train_path, training=True, size=imgsz, hyp=hyp)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
     nb = len(train_loader)  # number of batches
