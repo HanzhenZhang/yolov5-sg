@@ -657,3 +657,7 @@ def run(**kwargs):
 if __name__ == "__main__":
     opt = parse_opt()
     main(opt)
+
+#git fetch --all
+#git reset --hard master
+#git pull
