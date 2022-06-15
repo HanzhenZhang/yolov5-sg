@@ -262,6 +262,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f'Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n'
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
+
+    accuracy_max = torch.tensor(0)
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
         model.train()
@@ -346,21 +348,24 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         scheduler.step()
 
         model.eval()
-        accuracy = 0
-        for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
-            imgs = imgs.to(device, non_blocking=True)
-            labels = labels.to(device)
-            preds = model(imgs)
-            index = torch.where(labels!=255)
-            preds = preds[index]
-            labels = labels[index]
-            preds = F.softmax(preds)
-            preds = torch.argmax(preds, dim=1)
-            if i==0:
-                accuracy = torch.sum(preds==labels)/len(labels)
-            else:
-                accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
-        print('Accuracy:', accuracy)
+        with torch.no_grad():
+            accuracy = torch.tensor(0)
+            for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
+                imgs = imgs.to(device, non_blocking=True)
+                labels = labels.to(device)
+                preds = model(imgs)
+                index = torch.where(labels!=255)
+                preds = preds[index]
+                labels = labels[index]
+                preds = F.softmax(preds, dim=1)
+                preds = torch.argmax(preds, dim=1)
+                if i==0:
+                    accuracy = torch.sum(preds==labels)/len(labels)
+                else:
+                    accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
+            print('Accuracy:', accuracy.item())
+            if accuracy_max<accuracy:
+                torch.save(deepcopy(de_parallel(model)), best)
 
 
  
