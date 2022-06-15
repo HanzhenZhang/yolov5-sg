@@ -97,8 +97,9 @@ class ComputeLoss:
         h = model.hyp  # hyperparameters
 
         # Define criteria
-        BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
-        BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
+        #BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
+        BCEcls = nn.CrossEntropyLoss()
+        #BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
@@ -118,7 +119,6 @@ class ComputeLoss:
         # self.anchors = m.anchors
         self.device = device
         self.ifratio = torch.tensor([8,16,32],device=device) #image/feature
-        self.lossf = nn.CrossEntropyLoss()
 
     def __call__(self, p, targets):  # predictions, targets
         lcls = torch.zeros(1, device=self.device)  # class loss
@@ -155,7 +155,7 @@ class ComputeLoss:
                     #if self.nc > 1:  # cls loss (only if multiple classes)
             #t = torch.full_like(pcls, self.cn, device=self.device)  # targets
             #t[:, tcls] = self.cp
-            lcls += self.lossf(pcls, tcls)  # BCE
+            lcls += self.BCEcls(pcls, tcls)  # BCE
 
                     # Append targets to text file
                     # with open('targets.txt', 'a') as file:

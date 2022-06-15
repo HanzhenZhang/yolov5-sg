@@ -286,9 +286,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Model attributes
     nl = de_parallel(model).model[-1].nl  # number of detection layers (to scale hyps)
-    hyp['box'] *= 3 / nl  # scale to layers
-    hyp['cls'] *= nc / 80 * 3 / nl  # scale to classes and layers
-    hyp['obj'] *= (imgsz / 640) ** 2 * 3 / nl  # scale to image size and layers
+    #hyp['box'] *= 3 / nl  # scale to layers
+    hyp['cls'] *= nc / 19 * 3 / nl  # scale to classes and layers
+    #hyp['obj'] *= (imgsz / 640) ** 2 * 3 / nl  # scale to image size and layers
     hyp['label_smoothing'] = opt.label_smoothing
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
@@ -337,7 +337,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         for i, (imgs, labels, paths) in pbar:  # batch -------------------------------------------------------------
             callbacks.run('on_train_batch_start')
             ni = i + nb * epoch  # number integrated batches (since train start)
-            imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+            imgs = imgs.to(device, non_blocking=True)
 
             # Warmup
             if ni <= nw:
@@ -394,6 +394,12 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         lr = [x['lr'] for x in optimizer.param_groups]  # for loggers
         scheduler.step()
 
+        model.eval()
+        #for i, (imgs, labels, paths) in val_loader:  # batch -------------------------------------------------------------
+
+
+ 
+        '''
         if RANK in {-1, 0}:
             # mAP
             callbacks.run('on_train_epoch_end', epoch=epoch)
@@ -447,13 +453,14 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             # stop = stopper(epoch=epoch, fitness=fi)
             # if RANK == 0:
             #    dist.broadcast_object_list([stop], 0)  # broadcast 'stop' to all ranks
-
+        '''
         # Stop DPP
         # with torch_distributed_zero_first(RANK):
         # if stop:
         #    break  # must break all DDP ranks
 
         # end epoch ----------------------------------------------------------------------------------------------------
+    '''
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in {-1, 0}:
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
@@ -480,6 +487,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                         callbacks.run('on_fit_epoch_end', list(mloss) + list(results) + lr, epoch, best_fitness, fi)
 
         callbacks.run('on_train_end', last, best, plots, epoch, results)
+    '''
 
     torch.cuda.empty_cache()
     return results
