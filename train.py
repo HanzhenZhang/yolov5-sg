@@ -29,6 +29,7 @@ import torch.nn as nn
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import SGD, Adam, AdamW, lr_scheduler
+from torch.nn import functional as F
 from tqdm import tqdm
 
 FILE = Path(__file__).resolve()
@@ -221,62 +222,12 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     train_dataset = LoadImagesAndLabels_sg(train_path, training=True, size=imgsz)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
-    '''
-    train_loader, dataset = create_dataloader(train_path,
-                                              imgsz,
-                                              batch_size // WORLD_SIZE,
-                                              gs,
-                                              single_cls,
-                                              hyp=hyp,
-                                              augment=True,
-                                              cache=None if opt.cache == 'val' else opt.cache,
-                                              rect=opt.rect,
-                                              rank=LOCAL_RANK,
-                                              workers=workers,
-                                              image_weights=opt.image_weights,
-                                              quad=opt.quad,
-                                              prefix=colorstr('train: '),
-                                              shuffle=True)
-    mlc = int(np.concatenate(dataset.labels, 0)[:, 0].max())  # max label class
-    '''
     nb = len(train_loader)  # number of batches
     # assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
     val_dataset = LoadImagesAndLabels_sg(val_path, training=False)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
 
-
-    '''
-    # Process 0
-    if RANK in {-1, 0}:
-        val_loader = create_dataloader(val_path,
-                                       imgsz,
-                                       batch_size // WORLD_SIZE * 2,
-                                       gs,
-                                       single_cls,
-                                       hyp=hyp,
-                                       cache=None if noval else opt.cache,
-                                       rect=True,
-                                       rank=-1,
-                                       workers=workers * 2,
-                                       pad=0.5,
-                                       prefix=colorstr('val: '))[0]
-
-        if not resume:
-            labels = np.concatenate(dataset.labels, 0)
-            # c = torch.tensor(labels[:, 0])  # classes
-            # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
-            # model._initialize_biases(cf.to(device))
-            if plots:
-                plot_labels(labels, names, save_dir)
-
-            # Anchors
-            if not opt.noautoanchor:
-                check_anchors(dataset, model=model, thr=hyp['anchor_t'], imgsz=imgsz)
-            model.half().float()  # pre-reduce anchor precision
-
-        callbacks.run('on_pretrain_routine_end')
-    '''
     # DDP mode
     if cuda and RANK != -1:
         if check_version(torch.__version__, '1.11.0'):
@@ -395,7 +346,21 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         scheduler.step()
 
         model.eval()
-        #for i, (imgs, labels, paths) in val_loader:  # batch -------------------------------------------------------------
+        accuracy = 0
+        for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
+            imgs = imgs.to(device, non_blocking=True)
+            labels = labels.to(device)
+            preds = model(imgs)
+            index = torch.where(labels!=255)
+            preds = preds[index]
+            labels = labels[index]
+            preds = F.softmax(preds)
+            preds = torch.argmax(preds, dim=1)
+            if i==0:
+                accuracy = torch.sum(preds==labels)/len(labels)
+            else:
+                accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
+        print('Accuracy:', accuracy)
 
 
  
