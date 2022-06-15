@@ -289,7 +289,7 @@ class LoadImagesAndLabels_sg(Dataset):
             image = self.albumentations(image)
 
             # HSV color-space
-            augment_hsv(image, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
+            #augment_hsv(image, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
 
             # Flip up-down
             if random.random() < hyp['flipud']:
