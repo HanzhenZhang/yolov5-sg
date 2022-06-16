@@ -302,6 +302,7 @@ class LoadImagesAndLabels_sg(Dataset):
 
             image = np.ascontiguousarray(image)
             label = np.ascontiguousarray(label)
+
         else:
             image = np.array(image, np.uint8)
             label = np.array(label, np.int64)
