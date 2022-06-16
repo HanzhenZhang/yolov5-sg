@@ -352,7 +352,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
                 imgs = imgs.to(device, non_blocking=True)
                 labels = labels.to(device)
-                preds = model(imgs)
+                preds = model(imgs)[0]
                 index = torch.where(labels!=255)
                 preds = preds[index]
                 labels = labels[index]
