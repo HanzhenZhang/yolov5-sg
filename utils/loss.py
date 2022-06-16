@@ -118,7 +118,7 @@ class ComputeLoss:
         self.nl = m.nl  # number of layers
         # self.anchors = m.anchors
         self.device = device
-        self.ifratio = torch.tensor([8,16,32],device=device) #image/feature
+        #self.ifratio = torch.tensor([8,16,32],device=device) #image/feature
 
     def __call__(self, p, targets):  # predictions, targets
         lcls = torch.zeros(1, device=self.device)  # class loss
@@ -171,10 +171,10 @@ class ComputeLoss:
         #lbox *= self.hyp['box']
         #lobj *= self.hyp['obj']
         #lcls *= self.hyp['cls']
-        #bs = tobj.shape[0]  # batch size
+        bs = pi.shape[0]  # batch size
 
         #return (lbox + lobj + lcls) * bs, torch.cat((lbox, lobj, lcls)).detach()
-        return lcls, lcls.detach()
+        return lcls * bs, lcls.detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
