@@ -263,7 +263,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
 
-    accuracy_max = torch.tensor(0)
+    accuracy_max = torch.tensor(0,device=device)
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
         model.train()
@@ -349,7 +349,6 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
         model.eval()
         with torch.no_grad():
-            accuracy = torch.tensor(0)
             for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
                 imgs = imgs.to(device, non_blocking=True)
                 labels = labels.to(device)
