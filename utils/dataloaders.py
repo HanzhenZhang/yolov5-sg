@@ -278,7 +278,6 @@ class LoadImagesAndLabels_sg(Dataset):
         label = Image.open(self.label_path[index])
 
         if self.training:
-            hyp = self.hyp
             i, j, h, w = transforms.RandomCrop.get_params(image, (self.size, self.size))
 
             image = np.array(transformsF.crop(image, i, j, h, w), np.uint8)
@@ -292,18 +291,22 @@ class LoadImagesAndLabels_sg(Dataset):
             #augment_hsv(image, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
 
             # Flip up-down
-            if random.random() < hyp['flipud']:
+            if random.random() < self.hyp['flipud']:
                 image = np.flipud(image)
                 label = np.flipud(label)
 
             # Flip left-right
-            if random.random() < hyp['fliplr']:
+            if random.random() < self.hyp['fliplr']:
                 image = np.fliplr(image)
                 label = np.fliplr(label)
 
+            image = np.ascontiguousarray(image)
+            label = np.ascontiguousarray(label)
+        else:
+            image = np.array(image, np.uint8)
+            label = np.array(label, np.int64)
+
         image = image.transpose((2, 0, 1))  # HWC to CHW
-        image = np.ascontiguousarray(image)
-        label = np.ascontiguousarray(label)
 
         image = torch.from_numpy(image)/255.0
         label = torch.from_numpy(label)
