@@ -51,12 +51,13 @@ class Detect(nn.Module):
         z = []  # inference output
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
-            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,20,20,85)
+            #bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,20,20,85)
             x[i] = x[i].permute(0, 2, 3, 1).contiguous()
 
+            '''
             if not self.training:  # inference
                 y = x[i].sigmoid()
-                '''
+                
                 if self.inplace:
                     y[..., 0:2] = (y[..., 0:2] * 2 + self.grid[i]) * self.stride[i]  # xy
                     #y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
@@ -67,9 +68,9 @@ class Detect(nn.Module):
                     wh = (wh * 2) ** 2 * self.anchor_grid[i]  # wh
                     y = torch.cat((xy, wh, conf), 4)
                 z.append(y.view(bs, -1, self.no))
-                '''
+            '''
 
-        return x if self.training else y if self.export else y
+        return x # if self.training else y if self.export else y
 
 
 class Model(nn.Module):
