@@ -56,6 +56,7 @@ from utils.loss import ComputeLoss
 from utils.metrics import fitness
 from utils.plots import plot_evolve, plot_labels
 from utils.torch_utils import EarlyStopping, ModelEMA, de_parallel, select_device, torch_distributed_zero_first
+from stream_metrics import StreamSegMetrics
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
@@ -265,6 +266,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f'Starting training for {epochs} epochs...')
 
     accuracy_max = torch.tensor(0,device=device)
+    metrics = StreamSegMetrics(19)
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
         model.train()
@@ -349,25 +351,29 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         scheduler.step()
 
         model.eval()
+        metrics.reset()
         with torch.no_grad():
             for i, (imgs, labels, paths) in enumerate(val_loader):  # batch -------------------------------------------------------------
                 imgs = imgs.to(device, non_blocking=True)
-                labels = labels.to(device)
+                labels = labels.cpu().numpy()
                 preds = model(imgs)[0]
-                index = torch.where(labels!=255)
-                preds = preds[index]
-                labels = labels[index]
+                preds = torch.argmax(preds, dim=3).detach().cpu().numpy()
+                metrics.update(labels, preds)
+                #index = torch.where(labels!=255)
+                #preds = preds[index]
+                #labels = labels[index]
                 #preds = F.softmax(preds, dim=1)
-                preds = torch.argmax(preds, dim=1)
-                if i==0:
-                    accuracy = torch.sum(preds==labels)/len(labels)
-                else:
-                    accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
-            print('Accuracy:', accuracy.item())
-            f_acc.write('Accuracy:'+str(accuracy.item())+'\n')
-            f_acc.flush()
-            if accuracy_max<accuracy:
-                torch.save(deepcopy(de_parallel(model)), best)
+                #preds = torch.argmax(preds, dim=1)
+                #if i==0:
+                #    accuracy = torch.sum(preds==labels)/len(labels)
+                #else:
+                #    accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
+            #print('Accuracy:', accuracy.item())
+            #f_acc.write('Accuracy:'+str(accuracy.item())+'\n')
+            #f_acc.flush()
+            #if accuracy_max<accuracy:
+            #    torch.save(deepcopy(de_parallel(model)), best)
+            score = metrics.get_results()
     f_acc.close()
 
     torch.cuda.empty_cache()
