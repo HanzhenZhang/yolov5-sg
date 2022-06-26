@@ -265,7 +265,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
 
-    accuracy_max = torch.tensor(0,device=device)
+    accuracy_max = 0
+    miou_max = 0
     metrics = StreamSegMetrics(19)
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         callbacks.run('on_train_epoch_start')
@@ -368,12 +369,17 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 #    accuracy = torch.sum(preds==labels)/len(labels)
                 #else:
                 #    accuracy = (accuracy+torch.sum(preds==labels)/len(labels))/2
-            #print('Accuracy:', accuracy.item())
-            #f_acc.write('Accuracy:'+str(accuracy.item())+'\n')
-            #f_acc.flush()
-            #if accuracy_max<accuracy:
-            #    torch.save(deepcopy(de_parallel(model)), best)
+
             score = metrics.get_results()
+            accuracy = score["Overall Acc"]
+            miou = score["Mean IoU"]
+            miou_max
+            if miou_max<miou:
+                torch.save(deepcopy(de_parallel(model)), best)
+            
+            print('Accuracy:', accuracy, 'Miou:', miou)
+            f_acc.write('Accuracy:'+str(accuracy)+'\t Miou:'+str(miou)+'\n')
+            f_acc.flush()
     f_acc.close()
 
     torch.cuda.empty_cache()
