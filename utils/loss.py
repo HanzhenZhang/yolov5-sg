@@ -97,8 +97,8 @@ class ComputeLoss:
         h = model.hyp  # hyperparameters
 
         # Define criteria
-        #BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
-        BCEcls = nn.CrossEntropyLoss()
+        BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
+        #BCEcls = nn.CrossEntropyLoss()
         #BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
@@ -178,7 +178,8 @@ class ComputeLoss:
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
-        indices = torch.where(targets!=255)
+        targets = targets[:,:,:,0]
+        indices = torch.where(targets!=-1)
         return indices
 
         na, nt = self.na, targets.shape[0]  # number of anchors, targets

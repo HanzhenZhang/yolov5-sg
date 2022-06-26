@@ -282,6 +282,15 @@ class LoadImagesAndLabels_sg(Dataset):
 
             image = np.array(transformsF.crop(image, i, j, h, w), np.uint8)
             label = np.array(transformsF.crop(label, i, j, h, w), np.int64)
+            label_19 = np.zeros((h, w, 19), np.float32)
+            for k in range(19):
+                index_cls = np.where(label==k)
+                if len(index_cls[0])!=0:
+                    label_19[index_cls[0], index_cls[1], k] = 1
+
+            index_cls = np.where(label==255)
+            if len(index_cls[0])!=0:
+                    label_19[index_cls[0], index_cls[1], 0] = -1
 
             #img, labels = random_perspective(img,labels,degrees=hyp['degrees'],translate=hyp['translate'],scale=hyp['scale'],shear=hyp['shear'],perspective=hyp['perspective'])
 
@@ -305,12 +314,12 @@ class LoadImagesAndLabels_sg(Dataset):
 
         else:
             image = np.array(image, np.uint8)
-            label = np.array(label, np.int64)
+            label_19 = np.array(label, np.int64)
 
         image = image.transpose((2, 0, 1))  # HWC to CHW
 
         image = torch.from_numpy(image)/255.0
-        label = torch.from_numpy(label)
+        label = torch.from_numpy(label_19)
 
         return image, label, self.image_path[index]
 
