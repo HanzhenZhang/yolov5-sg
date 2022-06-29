@@ -27,6 +27,7 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 import yaml
+from torch.utils.data import distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import SGD, Adam, AdamW, lr_scheduler
 from torch.nn import functional as F
@@ -188,6 +189,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Resume
     start_epoch, best_fitness = 0, 0.0
+    '''
     if pretrained:
         # Optimizer
         if ckpt['optimizer'] is not None:
@@ -208,6 +210,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             epochs += ckpt['epoch']  # finetune additional epochs
 
         del ckpt, csd
+    '''
 
     # DP mode
     if cuda and RANK == -1 and torch.cuda.device_count() > 1:
@@ -222,13 +225,15 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
     # Trainloader
     train_dataset = LoadImagesAndLabels_sg(train_path, training=True, size=imgsz, hyp=hyp)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+    sampler = None if RANK == -1 else distributed.DistributedSampler(train_dataset, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers, sampler=sampler, pin_memory=True)
 
     nb = len(train_loader)  # number of batches
     # assert mlc < nc, f'Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}'
 
     val_dataset = LoadImagesAndLabels_sg(val_path, training=False)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=workers, pin_memory=True)
+    sampler = None if RANK == -1 else distributed.DistributedSampler(val_dataset, shuffle=False)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=workers, sampler=sampler, pin_memory=True)
 
     # DDP mode
     if cuda and RANK != -1:
@@ -380,20 +385,21 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             print('Accuracy:', accuracy, 'Miou:', miou)
             f_acc.write('Accuracy:'+str(accuracy)+'\t Miou:'+str(miou)+'\n')
             f_acc.flush()
-    f_acc.close()
 
-    torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
+    f_acc.close()
     return results
 
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=ROOT / 'yolov5x.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='yolov5l.yaml', help='model.yaml path')
+    #parser.add_argument('--weights', type=str, default=ROOT / 'yolov5l.pt', help='initial weights path')
+    parser.add_argument('--weights', type=str, default='/opt/data/liguo/yolov5/runs/train/exp11/weights/best.pt', help='initial weights path')
+    parser.add_argument('--cfg', type=str, default='yolov5x.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/cityscapes.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch-low.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=8, help='total batch size for all GPUs, -1 for autobatch')
+    parser.add_argument('--batch-size', type=int, default=6, help='total batch size for all GPUs, -1 for autobatch')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')
     parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
