@@ -395,7 +395,7 @@ def parse_opt(known=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5x.pt', help='initial weights path')
     #parser.add_argument('--weights', type=str, default='/opt/data/liguo/yolov5/runs/train/exp11/weights/best.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='yolov5l.yaml', help='model.yaml path')
+    parser.add_argument('--cfg', type=str, default='yolov5-4.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/cityscapes.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch-low.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
